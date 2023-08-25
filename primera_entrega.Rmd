@@ -1,0 +1,912 @@
+---
+title: "Primer momento de retroalimentación"
+author: "Samantha Daniela Guanipa Ugas A01703936"
+date: "2023-08-23"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(printr)
+library(e1071)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+```
+
+# Planteamiento del problema
+
+Una empresa automovilística china aspira a entrar en el mercado estadounidense. Desea establecer allí una unidad de fabricación y producir automóviles localmente para competir con sus contrapartes estadounidenses y europeas. Contrataron una empresa de consultoría de automóviles para identificar los principales factores de los que depende el precio de los automóviles, específicamente, en el mercado estadounidense, ya que pueden ser muy diferentes del mercado chino. Esencialmente, la empresa quiere saber:
+
+1.  Qué variables son significativas para predecir el precio de un automóvil
+2.  Qué tan bien describen esas variables el precio de un automóvil
+
+#### Teniendo la base de datos proporcionada, se subirá y será leída
+
+```{r}
+M=read.csv("precios_autos.csv") #leer la base de datos
+```
+
+# Análisis de la base de datos
+
+## - Exploración de la base de datos
+
+#### 1. Cálculo de las medidas estadísticas de las variables cuantitativas y cualitativas
+
+#### a) Cálculo de las medidas estadísticas de las variables cuantitativas
+
+```{r}
+
+# Se crea un data frame con las variables numericas
+
+numerical_df <- M %>% select(wheelbase, carlength, carwidth, carheight, curbweight, enginesize, stroke, compressionratio, horsepower, peakrpm, citympg, highwaympg, price)
+head(numerical_df)
+```
+
+```{r}
+
+#Se calcula el resumen de la variable, su desviacion estandar, su varianza, su kurtosis y su sesgo
+
+m0 <- round(c(as.numeric(summary(numerical_df$wheelbase)), sd(numerical_df$wheelbase), var(numerical_df$wheelbase), suppressWarnings(kurtosis(numerical_df$wheelbase)), suppressWarnings(skewness(numerical_df$wheelbase))), 3) 
+
+m1 <- round(c(as.numeric(summary(numerical_df$carlength)), sd(numerical_df$carlength), var(numerical_df$carlength), suppressWarnings(kurtosis(numerical_df$carlength)), suppressWarnings(skewness(numerical_df$carlength))), 3)
+
+m2 <- round(c(as.numeric(summary(numerical_df$carwidth)), sd(numerical_df$carwidth), var(numerical_df$carwidth), suppressWarnings(kurtosis(numerical_df$carwidth)), suppressWarnings(skewness(numerical_df$carwidth))), 3)
+m3 <- round(c(as.numeric(summary(numerical_df$carheight)), sd(numerical_df$carheight), var(numerical_df$carheight), suppressWarnings(kurtosis(numerical_df$carheight)), suppressWarnings(skewness(numerical_df$carheight))), 3)
+
+m4 <- round(c(as.numeric(summary(numerical_df$curbweight)), sd(numerical_df$curbweight), var(numerical_df$curbweight), suppressWarnings(kurtosis(numerical_df$curbweight)), suppressWarnings(skewness(numerical_df$curbweight))), 3)
+
+m5 <- round(c(as.numeric(summary(numerical_df$enginesize)), sd(numerical_df$enginesize), var(numerical_df$enginesize), suppressWarnings(kurtosis(numerical_df$enginesize)), suppressWarnings(skewness(numerical_df$enginesize))), 3)
+
+m6 <- round(c(as.numeric(summary(numerical_df$stroke)), sd(numerical_df$stroke), var(numerical_df$stroke), suppressWarnings(kurtosis(numerical_df$stroke)), suppressWarnings(skewness(numerical_df$stroke))), 3)
+
+m7 <- round(c(as.numeric(summary(numerical_df$compressionratio)), sd(numerical_df$compressionratio), var(numerical_df$compressionratio), suppressWarnings(kurtosis(numerical_df$compressionratio)), suppressWarnings(skewness(numerical_df$compressionratio))), 3)
+
+m8 <- round(c(as.numeric(summary(numerical_df$horsepower)), sd(numerical_df$horsepower), var(numerical_df$horsepower), suppressWarnings(kurtosis(numerical_df$horsepower)), suppressWarnings(skewness(numerical_df$horsepower))), 3)
+
+m9 <- round(c(as.numeric(summary(numerical_df$peakrpm)), sd(numerical_df$peakrpm), var(numerical_df$peakrpm), suppressWarnings(kurtosis(numerical_df$peakrpm)), suppressWarnings(skewness(numerical_df$peakrpm))), 3)
+
+m10 <- round(c(as.numeric(summary(numerical_df$citympg)), sd(numerical_df$citympg), var(numerical_df$citympg), suppressWarnings(kurtosis(numerical_df$citympg)), suppressWarnings(skewness(numerical_df$citympg))), 3)
+
+m11 <- round(c(as.numeric(summary(numerical_df$highwaympg)), sd(numerical_df$highwaympg), var(numerical_df$highwaympg), suppressWarnings(kurtosis(numerical_df$highwaympg)), suppressWarnings(skewness(numerical_df$highwaympg))), 3)
+
+m12 <- round(c(as.numeric(summary(numerical_df$price)), sd(numerical_df$price), var(numerical_df$price), suppressWarnings(kurtosis(numerical_df$price)), suppressWarnings(skewness(numerical_df$price))), 3)
+
+
+```
+
+```{r}
+
+m<-as.data.frame(rbind(m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12))
+row.names(m)=c("Wheelbase","Car length","Car width", "Car height", "Curb weight", "Engine size", "Stroke", "Compression ratio", "Horse power", "Peak rpm", "City mpg", "Highway mpg", "Price" )
+names(m)=c("Minimo","Q1","Mediana","Media","Q3","Máximo","Desviación Estándar", "Varianza", "Curtosis","Sesgo")
+m
+
+```
+
+Se puede observar el resumen de las medidas estadísticas de cada variable cuantitativa. Como ejemplo, explicaré el resumen de la variable "Wheelbase", que tiene como valor mínimo 86.60, como valor máximo 120.90, y el promedio de medidas es de 98.757 entre todos los elementos de esta clase. Sin embargo, el 25% de los valores son iguales o menores a 94.50, y el 75% de los valores son iguales o menores a 102.40. Además, se tiene una desviación estándar de 6.22 que indica que los valores están agrupados cerca de la media. Se puede observar que la curtosis es mayor que cero, por lo que es positiva y sugiere una distribución más puntiaguda. Por último, se tiene un sesgo positivo, lo que indica que es una distribución asimétrica a la derecha. Así, cada variable tiene su significado en el presente resumen para su análisis a lo largo de este entregable.
+
+#### b) Cálculo de las medidas estadísticas de las variables cualitativas
+
+```{r}
+library(dplyr)
+
+# Se crea un data frame con las variables categoricas
+categorical_df <- M %>% select(symboling, CarName, fueltype, carbody, drivewheel, enginelocation, enginetype, cylindernumber)
+head(categorical_df)
+
+
+```
+
+##### 1) Se generarán las tablas de frecuencias con dos inputs
+
+```{r}
+
+# Se crean los inputs
+input1 <- categorical_df$symboling
+input2 <- categorical_df$carbody
+
+# Se crea un dataframe con los inputs
+df_related <- data.frame(Input1 = input1, Input2 = input2)
+
+# Se cuenta la frecuencia de los inputs
+tabla_frecuencias <- df_related %>%
+  group_by(Input1, Input2) %>%
+  summarise(Frequency = n()) %>%
+  ungroup()
+
+# Se nombran las columnas
+namess <- c("Symboling", "Car body", "Frequency")
+colnames(tabla_frecuencias) <- namess
+
+# Tabla de frecuencias
+tabla_frecuencias
+
+
+
+
+```
+
+Como se puede observar, hay valores que no tienen un patrón como la categoría de riesgo 2 y el tipo de coche convertible que solo se repite 1 vez. Pero, sí se puede encontrar un patrón en la categoría de riesgo "0", y el tipo de coche "sedán" ya que se repite 43 veces, o por ejemplo la categoría de riesgo "1" y el tipo de coche "hatchback" que se repite 27 veces.
+
+Esta tabla puede ayudar a tener un conocimiento de qué categoría de riesgo puede tener cada tipo de coche mayormente, ya que se sigue un patrón con los datos que tienen una frecuencia alta.
+
+```{r}
+
+# Se crean los inputs
+input3 <- categorical_df$symboling
+input4 <- categorical_df$fueltype
+
+# Se crea un dataframe con los inputs
+df_related1 <- data.frame(Input1 = input3, Input2 = input4)
+
+# Se cuenta la frecuencia de los inputs
+tabla_frecuencias1 <- df_related1 %>%
+  group_by(Input1, Input2) %>%
+  summarise(Frequency = n()) %>%
+  ungroup()
+
+# Se nombran las columnas
+namess1 <- c("Symboling", "Fuel type", "Frequency")
+colnames(tabla_frecuencias1) <- namess1
+
+# Tabla de frecuencias
+print(tabla_frecuencias1)
+
+
+
+
+```
+
+Se puede encontrar un patrón en la siguiente tabla de frecuencias ya que se obtiene que los vehículos con categoría de riesgo "0" suelen utilizar gas con una frecuencia de 56. Por otra parte, los vehículos de una categoría de riesgo "1" también suelen usar gas con una frecuencia de 53. Por lo que se puede asumir que los carros que por su categoría se asumen como seguros suelen utilizar gas. Pero esto no es del todo claro ya que la categoría 3 se asume como riesgosa y hay 27 autos de esa categoría que utilizan gas.
+
+Si se ve de otro punto de vista, hay más frecuencia entre los autos que usan gas de los que usan diésel sin importar su categoría de riesgo.
+
+```{r}
+
+# Se crean los inputs
+input5 <- categorical_df$drivewheel
+input6 <- categorical_df$cylindernumber
+
+# Se crea un dataframe con los inputs
+df_related2 <- data.frame(Input1 = input5, Input2 = input6)
+
+# Se cuenta la frecuencia de los inputs
+tabla_frecuencias2 <- df_related2 %>%
+  group_by(Input1, Input2) %>%
+  summarise(Frequency = n()) %>%
+  ungroup()
+
+# Se nombran las columnas
+namess2 <- c("Drive wheel", "Cylinder number", "Frequency")
+colnames(tabla_frecuencias2) <- namess2
+
+# Tabla de frecuencias
+print(tabla_frecuencias2)
+
+
+```
+
+Se puede observar que hay una frecuencia alta de 111 y se puede asumir que los autos con una rueda motriz fwd suele utilizar cuatro cilindros.
+
+### 2. Exploración de los datos usando herramientas de visualización
+
+#### a) Variables cuantitativas
+
+##### Boxplots
+
+```{r}
+#Boxplot para wheelbase
+boxplot(numerical_df$wheelbase, horizontal = TRUE, col = "green", main = "Distribución de la distancia entre ejes de los
+automóviles")
+
+```
+
+Se observa una distribución sesgada a la derecha con dos datos atípicos.
+
+```{r}
+#Boxplot para car length
+boxplot(numerical_df$carlength, horizontal = TRUE, col = "red", main = "Distribución de las longitudes de los
+automóviles")
+
+```
+
+Se observa un solo dato atípico antes del mínimo. Además, una distribución sesgada a la derecha.
+
+```{r}
+#Boxplot para car width
+boxplot(numerical_df$carwidth, horizontal = TRUE, col = "yellow", main = "Distribución del ancho de los
+automóviles")
+
+```
+
+Se observa una distribución normalizada, pero teniendo en cuenta que hay datos atípicos entre 71 y 73.
+
+```{r}
+#Boxplot para car height
+boxplot(numerical_df$carheight, horizontal = TRUE, col = "blue", main = "Distribución de las alturas de los
+automóviles")
+
+```
+
+Se observa una distribución sesgada a la izquierda pero sin la presencia de datos atípicos.
+
+```{r}
+#Boxplot para curb weight
+boxplot(numerical_df$curbweight, horizontal = TRUE, col = "pink", main = "Distribución de los pesos en vacío de los
+automóviles")
+
+```
+
+Se observa una distribución sesgada a la derecha pero sin la presencia de datos atípicos.
+
+```{r}
+#Boxplot para engine size
+boxplot(numerical_df$enginesize, horizontal = TRUE, col = "red", main = "Distribución de los tamaños de los motores para los
+automóviles")
+
+```
+
+Se observa una gran cantidad de datos atípicos desde 225 aproximadamente, hasta más de 300. Sin embargo se ve una distribución normal.
+
+```{r}
+#Boxplot para stroke
+boxplot(numerical_df$stroke, horizontal = TRUE, col = "purple", main = "Distribución de tiempos de los motores de los
+automóviles")
+
+```
+
+Se observa que hay valores atípicos entre 2 y 2.5, además de más de 4. Se observa una distribución asimétrica a la izquierda.
+
+```{r}
+#Boxplot para compression ratio
+boxplot(numerical_df$compressionratio, horizontal = TRUE, col = "purple", main = "Distribución de la relación de compresión de los
+automóviles")
+
+```
+
+En este boxplot se observan valores atípicos mayores a 20. Por otra parte, hay una distribución normal ya que la media está centrada.
+
+```{r}
+#Boxplot para horse power
+boxplot(numerical_df$horsepower, horizontal = TRUE, col = "cyan", main = "Distribución de los caballos de potencia de los automóviles")
+
+```
+
+```{r}
+#Boxplot para peak rpm
+boxplot(numerical_df$peakrpm, horizontal = TRUE, col = "red", main = "Distribución de RPM de los automóviles")
+
+```
+
+```{r}
+#Boxplot para city mpg
+boxplot(numerical_df$citympg, horizontal = TRUE, col = "pink", main = "Distribución de kilometraje en ciudad de los automóviles")
+
+```
+
+```{r}
+#Boxplot para highway mpg
+boxplot(numerical_df$highwaympg, horizontal = TRUE, col = "purple", main = "Distribución de kilometraje en autopista de los automóviles")
+
+```
+
+```{r}
+#Boxplot para price
+boxplot(numerical_df$price, horizontal = TRUE, col = "yellow", main = "Distribución de precios de los automóviles")
+
+```
+
+##### Histogramas y densidades
+
+```{r}
+#Histograma para wheelbase
+hist(numerical_df$wheelbase, prob = TRUE, col = 2:10, main = "Distribución de la distancia entre ejes de los
+automóviles")
+x=seq(min(numerical_df$wheelbase),max(numerical_df$wheelbase),0.1)
+y=dnorm(x,mean(numerical_df$wheelbase),sd(numerical_df$wheelbase))
+lines(x,y,col="red")
+
+
+
+```
+
+Se observa que hay una distribución relativamente normalizada ya que no hay una inclinación notoria en la curva.
+
+```{r}
+
+#Histograma para car length
+hist(numerical_df$carlength,  prob = TRUE, col = 2:10, main = "Distribución de las longitudes de los
+automóviles")
+x1=seq(min(numerical_df$carlength),max(numerical_df$carlength),0.1)
+y1=dnorm(x1,mean(numerical_df$carlength),sd(numerical_df$carlength))
+lines(x1,y1,col="red")
+
+
+```
+
+Se observa que hay una distribución relativamente normalizada ya que no hay una inclinación notoria en la curva.
+
+```{r}
+#Histograma para car width
+hist(numerical_df$carwidth, prob = TRUE, col = 2:6, main = "Distribución del ancho de los
+automóviles")
+x2=seq(min(numerical_df$carwidth),max(numerical_df$carwidth),0.1)
+y2=dnorm(x2,mean(numerical_df$carwidth),sd(numerical_df$carwidth))
+lines(x2,y2,col="red")
+
+```
+
+Se observa que hay una distribución relativamente normalizada ya que no hay una inclinación notoria en la curva.
+
+```{r}
+#Histograma para car height
+hist(numerical_df$carheight, prob = TRUE, col = 1:8, main = "Distribución de las alturas de los
+automóviles")
+x3=seq(min(numerical_df$carheight),max(numerical_df$carheight),0.1)
+y3=dnorm(x3,mean(numerical_df$carheight),sd(numerical_df$carheight))
+lines(x3,y3,col="red")
+
+```
+
+Se observa que hay una distribución relativamente normalizada ya que no hay una inclinación notoria en la curva.
+
+```{r}
+#Histograma para curb weight
+hist(numerical_df$curbweight, prob = TRUE, col = 0:8, main = "Distribución de los pesos en vacío de los
+automóviles")
+x4=seq(min(numerical_df$curbweight),max(numerical_df$curbweight),0.1)
+y4=dnorm(x4,mean(numerical_df$curbweight),sd(numerical_df$curbweight))
+lines(x4,y4,col="red")
+
+```
+
+Se observa que hay una distribución relativamente normalizada ya que no hay una inclinación notoria en la curva.
+
+```{r}
+#Histograma para engine size
+hist(numerical_df$enginesize, prob = TRUE, col = 2:5, main = "Distribución de los tamaños de los motores para los
+automóviles")
+x5=seq(min(numerical_df$enginesize),max(numerical_df$enginesize),0.1)
+y5=dnorm(x5,mean(numerical_df$enginesize),sd(numerical_df$enginesize))
+lines(x5,y5,col="red")
+
+```
+
+Aquí hay una distribución sesgada a la derecha ya que el mayor volumen se concentra a la izquierda de la gráfica.
+
+```{r}
+#Histograma para stroke
+hist(numerical_df$stroke, prob = TRUE, col = 1:5, main = "Distribución de tiempos de los motores de los
+automóviles")
+x6=seq(min(numerical_df$stroke),max(numerical_df$stroke),0.1)
+y6=dnorm(x6,mean(numerical_df$stroke),sd(numerical_df$stroke))
+lines(x6,y6,col="red")
+
+```
+
+Por el contrario, en esta se observa una distribución sesgada a la izquierda ya que el volumen se concentra a la derecha de la gráfica.
+
+```{r}
+#Histograma para compression ratio
+hist(numerical_df$compressionratio, prob = TRUE, col = 10:15, main = "Distribución de la relación de compresión de los
+automóviles")
+
+x7=seq(min(numerical_df$compressionratio),max(numerical_df$compressionratio),0.1)
+y7=dnorm(x7,mean(numerical_df$compressionratio),sd(numerical_df$compressionratio))
+lines(x7,y7,col="red")
+
+```
+
+En esta gráfica de relación de compresión de los automóviles está sesgada a la derecha pero se observa una gran cantidad de datos atípicos que pueden afectar el análisis.
+
+```{r}
+#Histograma para horse power
+hist(numerical_df$horsepower, prob = TRUE, col = 10:14, main = "Distribución de los caballos de potencia de los automóviles")
+
+x8=seq(min(numerical_df$horsepower),max(numerical_df$horsepower),0.1)
+y8=dnorm(x8,mean(numerical_df$horsepower),sd(numerical_df$horsepower))
+lines(x8,y8,col="red")
+
+```
+
+En esta gráfica de los caballos de potencia se observan datos atípicos entre 250 y 300 que generan ruido al análisis, pero se sabe que está sesgado a la derecha.
+
+```{r}
+#Histograma para peak rpm
+hist(numerical_df$peakrpm, prob = TRUE, col = 10:15, main = "Distribución de RPM de los automóviles")
+x9=seq(min(numerical_df$peakrpm),max(numerical_df$peakrpm),0.1)
+y9=dnorm(x9,mean(numerical_df$peakrpm),sd(numerical_df$peakrpm))
+lines(x9,y9,col="red")
+
+```
+
+Hay pocos datos atípicos, pero se observa que la gráfica para los RPM está normalizada.
+
+```{r}
+#Histograma para city mpg
+
+hist(numerical_df$citympg, prob = TRUE, col = 2:8, main = "Distribución de kilometraje en ciudad de los automóviles")
+x10=seq(min(numerical_df$citympg),max(numerical_df$citympg),0.1)
+y10=dnorm(x10,mean(numerical_df$citympg),sd(numerical_df$citympg))
+lines(x10,y10,col="red")
+
+
+```
+
+Se observa que está normalizada pero un poco influenciada por los datos atípicos.
+
+```{r}
+#Histograma para highway mpg
+hist(numerical_df$highwaympg, prob = TRUE, col = 10:15, main = "Distribución de kilometraje en autopista de los automóviles")
+x11=seq(min(numerical_df$highwaympg),max(numerical_df$highwaympg),0.1)
+y11=dnorm(x11,mean(numerical_df$highwaympg),sd(numerical_df$highwaympg))
+lines(x11,y11,col="red")
+
+
+```
+
+Para los MPG del highway se observa normalizada.
+
+```{r}
+#Histograma para price
+hist(numerical_df$price, prob = TRUE, col = 2:15, main = "Distribución de precios de los automóviles")
+x12=seq(min(numerical_df$price),max(numerical_df$price),0.1)
+y12=dnorm(x12,mean(numerical_df$price),sd(numerical_df$price))
+lines(x12,y12,col="red")
+
+```
+
+El precio se observa que su gráfica está sesgada a la derecha con varios valores atípicos.
+
+##### Coeficiente de correlación
+
+El coeficiente de correlación puede ayudar a seleccionar las variables importantes para el análisis de las características de los automóviles que determinan su precio. Por lo tanto se evaluará la correlación de cada variable con respecto al precio en este inciso.
+
+```{r}
+price <- numerical_df$price
+wheelbase <- numerical_df$wheelbase
+r= cor(price,wheelbase)
+cat("El coeficiente de correlación entre el precio de los automóviles y la distancia entre ejes de los automóviles está dado por: 
+    r =",r)
+
+```
+
+```{r}
+price <- numerical_df$price
+carlength <- numerical_df$carlength
+r1= cor(price,carlength)
+cat("El coeficiente de correlación entre el precio de los automóviles y la longitud de los automóviles está dado por: 
+    r =",r1)
+
+```
+
+```{r}
+price <- numerical_df$price
+carwidth <- numerical_df$carwidth
+r2= cor(price,carwidth)
+cat("El coeficiente de correlación entre el precio de los automóviles y el ancho de los automóviles está dado por: 
+    r =",r2)
+
+```
+
+```{r}
+price <- numerical_df$price
+carheight <- numerical_df$carheight
+r3= cor(price,carheight)
+cat("El coeficiente de correlación entre el precio de los automóviles y la altura de los automóviles está dado por: 
+    r =",r3)
+
+```
+
+```{r}
+price <- numerical_df$price
+curbweight <- numerical_df$curbweight
+r4= cor(price,curbweight)
+cat("El coeficiente de correlación entre el precio de los automóviles y los pesos en vacío de los automóviles está dado por: 
+    r =",r4)
+
+```
+
+```{r}
+price <- numerical_df$price
+enginesize <- numerical_df$enginesize
+r5= cor(price,enginesize)
+cat("El coeficiente de correlación entre el precio de los automóviles y el tamaño de los motores de los automóviles está dado por: 
+    r =",r5)
+
+```
+
+```{r}
+price <- numerical_df$price
+stroke <- numerical_df$stroke
+r6= cor(price,stroke)
+cat("El coeficiente de correlación entre el precio de los automóviles y tiempos de los motores de los automóviles está dado por: 
+    r =",r6)
+
+```
+
+```{r}
+price <- numerical_df$price
+compressionratio <- numerical_df$compressionratio
+r7= cor(price,compressionratio)
+cat("El coeficiente de correlación entre el precio de los automóviles y la relación de compresión de los automóviles está dado por: 
+    r =",r7)
+
+```
+
+```{r}
+price <- numerical_df$price
+horsepower <- numerical_df$horsepower
+r8= cor(price,horsepower)
+cat("El coeficiente de correlación entre el precio de los automóviles y los caballos de potencia de los automóviles está dado por: 
+    r =",r8)
+
+```
+
+```{r}
+price <- numerical_df$price
+peakrpm <- numerical_df$peakrpm
+r9= cor(price,peakrpm)
+cat("El coeficiente de correlación entre el precio de los automóviles y las RPM de los automóviles está dado por: 
+    r =",r9)
+
+```
+
+```{r}
+price <- numerical_df$price
+citympg <- numerical_df$citympg
+r10= cor(price,citympg)
+cat("El coeficiente de correlación entre el precio de los automóviles y los kilometrajes en ciudad de los automóviles está dado por: 
+    r =",r10)
+
+```
+
+```{r}
+price <- numerical_df$price
+highwaympg <- numerical_df$highwaympg
+r11= cor(price,highwaympg)
+cat("El coeficiente de correlación entre el precio de los automóviles y los kilometrajes en carretera de los automóviles está dado por: 
+    r =",r11)
+
+```
+
+```{r}
+#Coeficientes de correlación entre todas las combinaciones posibles de variables numericas
+
+data <- numerical_df
+
+# Calcular la matriz de correlación
+cor_matrix <- cor(data[, c("wheelbase", "carlength", "carwidth", "carheight", "curbweight", "enginesize", "stroke", "compressionratio", "horsepower", "peakrpm", "citympg", "highwaympg", "price")])
+
+
+print(cor_matrix)
+```
+
+Se puede observar que price tiene una correlación positiva y mayor que cero con: curbweight, horsepower, carwidth, enginesize, lo que quiere decir que cuando estas variables aumentan, entonces muy probablemente el precio aumentará. Sin embargo, tiene una correlación negativa con: city mpg, y highwaympg, lo que quiere decir que cuando estas aumenten (en kilometraje), el precio del vehículo tenderá a disminuir.
+
+##### Diagrama de dispersión
+
+```{r}
+#nuevo data frame 
+data <- numerical_df
+#Variables
+y_variable <- "price"
+x_variables <- colnames(data)[colnames(data) != y_variable]
+
+# Diagramas de dispersion
+for (x_var in x_variables) {
+  p <- ggplot(data, aes(x = !!sym(x_var), y = !!sym(y_variable))) +
+    geom_point() +
+    geom_smooth(method = "lm", col = "red", se = FALSE) +  # Agregar línea de regresión
+    labs(title = paste("Scatter plot of", x_var, "vs", y_variable),
+         x = x_var,
+         y = y_variable)
+  
+  print(p)
+}
+
+```
+
+#### b) Variables categóricas
+
+##### Diagrama de barra
+
+```{r}
+
+T = table(categorical_df$symboling)
+T
+barplot(T, col = 2:15, main = "Frecuencia en categoría de riesgos por vehiculo")
+
+```
+
+Se observa que es de utilidad la clase "category", ya que se acumulan 60 presencias en la categoría "0", y 50 en la de "1" y se puede interpretar que la mayoría de los valores se acumulan entre esas dos categorías. Por otra parte hay 30 valores para categoría de riesgo "2" y muy pocas para la categoría más baja de riesgo.
+
+```{r}
+T = table(categorical_df$CarName)
+T
+barplot(T, col = 2:15, main = "Frecuencia de riesgos por vehiculo")
+```
+
+Se observa que no es de utilidad la clase "CarName", ya que son pocos valores por categoría y no tienen ningún patrón. La mayoría de las marcas tienen frecuencia de 1, y la máxima de 6.
+
+```{r}
+T = table(categorical_df$fueltype)
+T
+barplot(T, col = 2:15, main = "Frecuencia de combustible por vehiculo")
+```
+
+Aquí es muy notorio que la mayoría de los vehículos utilizan gas, teniendo una frecuencia de más de 150 y de 25 para diésel.
+
+```{r}
+T = table(categorical_df$carbody)
+T
+barplot(T, col = 2:15, main = "Frecuencia de  tipo de vehiculo")
+```
+
+Se observa que hay más de 80 vehículos sedán, aproximadamente 70 de hatchback, y pocos convertibles, hardtop, y wagon.
+
+```{r}
+T = table(categorical_df$drivewheel)
+T
+barplot(T, col = 2:15, main = "Frecuencia de rueda motriz de vehiculo")
+```
+
+Se observa que más de 120 vehículos utilizan una rueda motriz "fwd", la mitad utiliza un rwd y por último casi 10 utilizan "4wd". Por lo que el "4wd" no es tan significativo en el análisis.
+
+```{r}
+T = table(categorical_df$enginelocation)
+T
+barplot(T, col = 2:15, main = "Frecuencia de ubicación del motor de vehiculo")
+```
+
+Es muy evidente que 200 vehículos ubican su motor al frente, y menos de 50 en la parte trasera por lo que se tomará como más significativo el los motores al frente del vehículo.
+
+```{r}
+T = table(categorical_df$enginetype)
+T
+barplot(T, col = 2:15, main = "Frecuencia de tipo de motor del vehiculo")
+```
+
+La mayoría de los vehículos utilizan el motor "ohc", los valores "dohcv" y "rotor" son casi nulos por lo que serán no significativos.
+
+```{r}
+T = table(categorical_df$cylindernumber)
+T
+barplot(T, col = 2:15, main = "Frecuencia en categoría de número de cilindros del motor de vehiculo")
+```
+
+Se observa que la mayoría de los motores utilizan 4 cilindros, y los demás son tan pequeños que no se les consideran significativos para el análisis.
+
+##### Diagramas de pastel
+
+```{r}
+Tabla = table(categorical_df$symboling)
+Tabla=prop.table(Tabla)
+names(Tabla)=c("-2","-1","0","1","2","3")
+pie(Tabla, main = "Categoría de riesgo", labels = c("-2","-1","0","1","2","3"))
+
+
+```
+
+Se observa que hay una mayor cantidad de vehículos en la categoría de riesgo 0 y una muy baja en la -2.
+
+```{r}
+Tabla = table(categorical_df$fueltype)
+Tabla=prop.table(Tabla)
+names(Tabla)=c("diesel","gas")
+pie(Tabla, main = "Tipo de combustible", labels = c("diesel","gas"))
+
+
+```
+
+Así como se observó en la gráfica de barras, el uso o consumo de gas por vehículos predomina sobre el uso del diésel.
+
+```{r}
+Tabla = table(categorical_df$carbody)
+Tabla=prop.table(Tabla)
+names(Tabla)=c("convertible",  "hardtop", "hatchback",   "sedan",  "wagon")
+pie(Tabla, main = "Tipo de vehículo", labels = c("convertible",  "hardtop", "hatchback",   "sedan",  "wagon"))
+
+```
+
+Así como en el gráfico de barras, se observa que predomina el sedán.
+
+```{r}
+Tabla = table(categorical_df$enginelocation)
+Tabla=prop.table(Tabla)
+names(Tabla)=c("front", "rear")
+pie(Tabla, main = "Ubicación del motor", labels = c("front", "rear"))
+
+```
+
+Así como en el gráfico de barras, se observa que la mayoría de los autos tienen su motor en el frente.
+
+```{r}
+Tabla = table(categorical_df$cylindernumber)
+Tabla=prop.table(Tabla)
+names(Tabla)=c("eight",  "five", "four", "six",  "three", "twelve",  "two")
+pie(Tabla, main = "Número de cilindros del motor", labels = c("eight",  "five", "four", "six",  "three", "twelve",  "two"))
+
+```
+
+Así como en el gráfico de barras, se observa que la mayoría de los autos tienen un motor de 4 cilindros.
+
+##### Diagramas de caja y bigote de precio por categoría y barras por categoría
+
+### 3. Identificación de problemas de calidad de datos
+
+#### a) Valores faltantes
+
+##### Se evaluará si existen valores faltantes en el dataframe:
+
+```{r}
+# Se verifica si hay NaN en el dataframe numerico
+
+any(apply(numerical_df, 2, function(x) any(is.nan(x))))
+
+```
+
+No existen NaN en las variables numéricas
+
+```{r}
+#Se verifica si hay NA en el dataframe categorico
+any(is.na(categorical_df))
+
+```
+
+No existen NA en las variables numéricas
+
+Se puede observar que no existen valores faltantes en el data frame por lo que el análisis puede ser significativo.
+
+#### b) Outliers
+
+##### Se observan los datos atípicos para las variables numéricas
+
+Teniendo en cuenta los boxplots que se realizaron y analizaron previamente se puede observar que existen muchos datos atípicos en la mayoría de las clases, pero, principalmente en la relación de la compresión de los automóviles y la distribución del tamaño de los motores para los automóviles. Por otra parte, no existe ningún dato atípico en los pesos en vacío de los automóviles. Sin embargo se hizo un mayor énfasis en el análisis de cada gráfica para explicar esto de una mejor manera.
+
+##### Se observan los datos atípicos para las variables categóricas
+
+Como se observó en el gráfico de barras realizado y analizado previamente, para la la clase de número de cilindros por vehículo se tienen como valores atípicos tres cilindros y veinte cilindros ya que su presencia es muy poca y es insignificante. Además, para el tipo de motor de vehículo se consideran como outliers el motor "dohcv", y "rotor". Sin embargo se hizo un mayor énfasis en el análisis de cada gráfica para explicar esto de una mejor manera.
+
+### 4. Variables importantes para el análisis de las características de los automóviles que determinan su precio.
+
+A partir de todo lo mencionado anteriormente, como las gráficas, las frecuencias de cada variable, el resumen de sus medidas estadísticas y correlaciones con la variable dependiente "precio", las variables que se consideran importantes para determinar el precio de un automóvil son:
+
+1.  Curbweight\
+2.  Horsepower
+3.  Carwidth
+4.  enginesize
+5.  Citympg
+6.  Highwaympg
+7.  Symboling
+8.  Cylinder number
+9.  Engine type
+10. Carbody
+
+Estas variables fueron seleccionadas debido a que tienen una correlación o positiva o negativa con el precio del vehículo, y valores que son significativos para el análisis.
+
+## - Preparación de la base de datos
+
+### 1. Selecciona el conjunto de datos a utilizar.
+
+#### a) Maneja datos categóricos: transforma a variables dummy si es necesario.
+
+Primeramente eliminaré las variables que no serán de utilidad para mi análisis.
+
+```{r}
+
+columns_to_keep <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "cylindernumber", "price", "enginetype", "carbody")
+
+# Crear un nuevo dataframe solo con las columnas seleccionadas
+df_selected <- M[, columns_to_keep]
+head(df_selected)
+
+```
+
+#### b) Maneja apropiadamente datos atípicos.
+
+Posteriormente, eliminaré los datos atípicos de las variables numéricas ya que eliminar los outliear de las variables categóricas realmente no influiría mucho en el análisis de los valores.
+
+Para esto, primeramente definí las variables numéricas a las que se les quieren extraer los outliers.
+
+```{r}
+
+# Definir las variables numericas
+num_vars <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "price")
+
+#remover outliers 
+remove_outliers <- function(df, num_vars) {
+  # Se registran los valores atipicos
+  keep_rows <- rep(TRUE, nrow(df))
+  
+  # Ciclo for para cada variable numerica
+  for (var in num_vars) {
+    # Se calculan los valores atipicos de cada variable numerica
+    outliers <- boxplot.stats(df[[var]])$out
+    
+    # Se remueven las filas con outliers
+    keep_rows <- keep_rows & !df[[var]] %in% outliers
+  }
+  
+  # Se regresa un dataframe sin los valores atipicos
+  df[keep_rows, ]
+}
+
+# Se remueven los outliers y se crea un nuevo dataframe con los valores sin outliers
+df_selected_no_outliers <- remove_outliers(df_selected, num_vars)
+
+head(df_selected_no_outliers)
+
+
+
+```
+
+Por último se crean variables dummy para el mejor análisis de los datos, volviendo las variables categóricas a numéricas en un rango entre 0 o 1. Si están presentes, estas tendrán un valor de 1, en caso contrario, su valor será de 0.
+
+```{r}
+data <- df_selected_no_outliers
+# Convertir variables categoricas a variables dummy
+dummy_columns <- character()  
+
+for (col in names(data)) {
+  
+  if (is.factor(data[[col]]) || is.character(data[[col]])) {
+    
+    dummy_mat <- model.matrix(~ data[[col]] - 1, data = data)
+    
+    colnames(dummy_mat) <- sub("^data\\[[\"']|['\"]\\]$", "", colnames(dummy_mat), perl = TRUE)
+    
+    # Agregar columnas dummy a dataframe sin outliers
+    data <- cbind(data, dummy_mat)
+    
+    # Almacenar nombres de las columnas dummy para cada variable categorica
+    dummy_columns <- c(dummy_columns, colnames(dummy_mat))
+  }
+}
+
+# Crear un nuevo dataframe solo con las columnas numéricas y las variables dummy, sin categoricas
+numeric_columns <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "price")
+selected_columns <- c(dummy_columns, numeric_columns)
+df_cleaned <- data[selected_columns]
+head(df_cleaned)
+
+
+  
+```
+
+### 2. Transforma los datos en caso necesario.
+
+#### a) Revisa si es necesario discretizar los datos
+
+Considero que no es necesario discretizar los datos ya que al predecir el precio de un automóvil es preferible mantener las variables continuas en lugar de discretizarlas para conservar la información detallada en los datos sin perder información importante sobrbe la relación entrelas variables de los automóviles y su precio. Al tener una gran cantidad de variables continuas creo que perdería valores reales al discretizarlos y no reflejaría la realidad del contexto, lo cual no es conveniente para el cliente.
+
+#### b) Revisa si es necesario escalar y normalizar los datos
+
+Teniendo en cuenta que las distintas variables tienen diferentes sesgos, y están distribuidos hacia la derecha o hacia la izquierda, considero prudente para el análisis el normalizar los datos. Además, si en el futuro decido usar algún algoritmo de optimización, la normalización puede mejorar la eficiencia del entrenamiento y tener una mejor predicción.
+
+```{r}
+
+# Lista de variables numéricas
+numeric_columns <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "price")
+
+# Normalizar variables numericas
+normalize_zscore <- function(column) {
+  (column - mean(column, na.rm = TRUE)) / sd(column, na.rm = TRUE)
+}
+
+# Crear un nuevo dataframe para los datos normalizados
+df_normalized <- df_cleaned
+
+# Normalizar las columnas numéricas
+df_normalized[numeric_columns] <- lapply(df_normalized[numeric_columns], normalize_zscore)
+
+head(df_normalized)
+
+
+
+```
+
+## Conclusión
+
+A lo largo de este reporte se hicieron análisis tanto gráficos como numéricos. Iniciando por generar el resumen de las medidas estadísticas de las variables numéricas, notando hacia donde se agrupan la mayoría de los valores, y observando en las boxplots que hay muchos valores atípicos en la mayoría de las variables numéricas excepto en la variable de curbweight. Por lo que al momento de seleccionar las variables útiles para el análisis: "curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "cylindernumber", "price", "enginetype", "carbody", se hizo una normalización de las mismas usando el método de Z-score. Por otra parte, como se consideran relevantes algunas variables categóricas, se transformaron en variables dummy que están en un rango de cero y uno. Estas variables a tratar fueron seleccionadas ya que tienen un impacto en la correlación positiva o negativa con respecto al precio del vehículo. Se dejaron de lado otras variables que o se repetían mucho o eran insignificantes para el análisis deseado. Sobre el análisis realizado, se observa que el kilometraje en ciudad y carretera tiene un impacto negativo en el precio, es decir, que cuanto mayor es este kilometraje, el precio disminuye. Por otra parte, tomando en cuenta las variables como el peso en vacío del vehículo, los caballos de potencia, el tamaño del vehículo y del motor, el precio aumenta conforme estas variables aumentan. Esto puede significar mucho para ayudar al cliente a obtener los precios de sus vehículos al establecer su compañía en el mercado estadounidense.
