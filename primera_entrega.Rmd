@@ -8,10 +8,14 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(printr)
+library(tidyverse)
+library(bestNormalize)
 library(e1071)
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
+library(car)
+library(Hmisc)
 ```
 
 # Planteamiento del problema
@@ -773,7 +777,7 @@ Como se observó en el gráfico de barras realizado y analizado previamente, par
 
 A partir de todo lo mencionado anteriormente, como las gráficas, las frecuencias de cada variable, el resumen de sus medidas estadísticas y correlaciones con la variable dependiente "precio", las variables que se consideran importantes para determinar el precio de un automóvil son:
 
-1.  Curbweight\
+1.  Curbweight
 2.  Horsepower
 3.  Carwidth
 4.  enginesize
@@ -796,11 +800,11 @@ Primeramente eliminaré las variables que no serán de utilidad para mi análisi
 
 ```{r}
 
-columns_to_keep <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "cylindernumber", "price", "enginetype", "carbody")
+columns <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "cylindernumber", "price", "enginetype", "carbody")
 
 # Crear un nuevo dataframe solo con las columnas seleccionadas
-df_selected <- M[, columns_to_keep]
-head(df_selected)
+df_selected <- M[, columns]
+
 
 ```
 
@@ -808,12 +812,12 @@ head(df_selected)
 
 Posteriormente, eliminaré los datos atípicos de las variables numéricas ya que eliminar los outliear de las variables categóricas realmente no influiría mucho en el análisis de los valores.
 
-Para esto, primeramente definí las variables numéricas a las que se les quieren extraer los outliers.
+Para esto, definí las variables numéricas a las que se les quieren extraer los outliers.
 
 ```{r}
 
 # Definir las variables numericas
-num_vars <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "price")
+num_vars <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "price")
 
 #remover outliers 
 remove_outliers <- function(df, num_vars) {
@@ -835,8 +839,6 @@ remove_outliers <- function(df, num_vars) {
 
 # Se remueven los outliers y se crea un nuevo dataframe con los valores sin outliers
 df_selected_no_outliers <- remove_outliers(df_selected, num_vars)
-
-head(df_selected_no_outliers)
 
 
 
@@ -866,10 +868,10 @@ for (col in names(data)) {
 }
 
 # Crear un nuevo dataframe solo con las columnas numéricas y las variables dummy, sin categoricas
-numeric_columns <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "price")
+numeric_columns <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "price")
 selected_columns <- c(dummy_columns, numeric_columns)
 df_cleaned <- data[selected_columns]
-head(df_cleaned)
+
 
 
   
@@ -888,7 +890,7 @@ Teniendo en cuenta que las distintas variables tienen diferentes sesgos, y está
 ```{r}
 
 # Lista de variables numéricas
-numeric_columns <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "price")
+numeric_columns <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "price")
 
 # Normalizar variables numericas
 normalize_zscore <- function(column) {
@@ -901,12 +903,560 @@ df_normalized <- df_cleaned
 # Normalizar las columnas numéricas
 df_normalized[numeric_columns] <- lapply(df_normalized[numeric_columns], normalize_zscore)
 
-head(df_normalized)
 
+```
+
+### 4. Identificación de los datos influyentes
+
+Para esta entrega se requiere un análisis de los datos con outliers, y sin outliers, por lo que crearé variables dummy para los datos con outliers.
+
+```{r}
+data1 <- df_selected
+# Convertir variables categoricas a variables dummy
+dummy_columns <- character()  
+
+for (col in names(data1)) {
+  
+  if (is.factor(data1[[col]]) || is.character(data1[[col]])) {
+    
+    dummy_mat <- model.matrix(~ data1[[col]] - 1, data1 = data1)
+    
+    colnames(dummy_mat) <- sub("^data1\\[[\"']|['\"]\\]$", "", colnames(dummy_mat), perl = TRUE)
+    
+    # Agregar columnas dummy a dataframe sin outliers
+    data1 <- cbind(data1, dummy_mat)
+    
+    # Almacenar nombres de las columnas dummy para cada variable categorica
+    dummy_columns <- c(dummy_columns, colnames(dummy_mat))
+  }
+}
+
+# Crear un nuevo dataframe solo con las columnas numéricas y las variables dummy, sin categoricas
+numeric_columns <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "price")
+selected_columns <- c(dummy_columns, numeric_columns)
+df_outliers <- data1[selected_columns]
+
+```
+
+Entonces, teniendo las variables dummy con outliers en "df_outliers" y sin outliers y normalizada en "df_normalized", se procederá a la obtención de datos influyentes.
+
+Teniendo las variables predictoras alamacenadas en "X" y la variable dependiente en "Y", se crea un modelo de regresión lineal con las variables predictoras. Posteriormente se calcularán las medidas de influencia utilizando "influence.measures()" y se calculará el umbral de la distancia de Cook, si existen valores fuera de ese umbral serán valores influyentes.
+
+#### Para datos con outliers
+
+```{r}
+X <- df_outliers[, c("horsepower", "curbweight", "carwidth", "enginesize", "highwaympg", "citympg")]
+Y <- df_outliers$price
+
+# Construir la fórmula
+formula <- as.formula(paste("Y ~", paste(names(X), collapse = "+")))
+
+# Crear el modelo
+modelo <- lm(formula, data = df_outliers)
+
+# Obtener la influencia de los datos
+influencia <- influence.measures(modelo)
+
+# Cook's distance
+umbral_cooks <- 4/nrow(df_outliers)
+
+# Obtener valores influyentes
+valores_influyentes <- which(influencia$cooks > umbral_cooks)
+
+# Mostrar índices de valores influyentes
+print(valores_influyentes)
 
 
 ```
 
-## Conclusión
+Después de realizar los cálculos, se determinó que no existen valores influyentes en el conjunto de datos según el umbral de la distancia de Cook definido. Por lo que se concluye con que ninguna observación tuvo un impacto significativo en el modelo de regresión lineal en términos de influencia sobre los resultados.
+
+#### Para datos sin outliers
+
+```{r}
+X1 <- df_normalized[, c("horsepower", "curbweight", "carwidth", "enginesize", "highwaympg", "citympg")]
+Y1 <- df_normalized$price
+
+# Construir la fórmula
+formula <- as.formula(paste("Y1 ~", paste(names(X1), collapse = "+")))
+
+# Crear el modelo
+modelo <- lm(formula, data = df_normalized)
+
+# Obtener la influencia de los datos
+influencia <- influence.measures(modelo)
+
+# Cook's distance
+umbral_cooks <- 4/nrow(df_outliers)
+
+# Obtener valores influyentes
+valores_influyentes <- which(influencia$cooks > umbral_cooks)
+
+# Mostrar índices de valores influyentes
+print(valores_influyentes)
+
+
+```
+
+Después de realizar los cálculos, se determinó que no existen valores influyentes en el conjunto de datos según el umbral de la distancia de Cook definido. Por lo que se concluye con que ninguna observación tuvo un impacto significativo en el modelo de regresión lineal en términos de influencia sobre los resultados.
+
+## - Análisis de datos y pregunta base
+
+### 1. Selecciona al menos dos de las herramientas estadísticas que hemos analizado en el curso: regresión lineal simple y múltiple, anova o pruebas de hipótesis (medias o proporción). Justifica la elección de la herramienta estadística.
+
+Para este caso se están trabajando con variables categóricas y numéricas, por lo que una regresión lineal simple no será de una gran ayuda. Por lo tanto, se seleccionaron las siguientes herramientas estadísticas:
+
+1.  Regresión lineal múltiple: Esta herramienta estadística fue seleccionada ya que puede manejar tanto variables numéricas como categóricas, y proporciona coeficientes para cada variable predictora, lo que permite cuantificar el efecto estimado de cada variable.
+
+2.  Pruebas de hipótesis para medias: Esta herramienta estadística se seleccionó porque dado que la empresa automovilística china está interesada en competir en el mercado estadounidense, se pueden tomar decisiones al conocer las diferencias de precios entre las categorías planteadas. Además, pueden evaluar si la varianza de los precios es similar en diferentes grupos.
+
+#### Pruebas de hipótesis
+
+##### 1. Se comprueban los supuestos requeridos por el modelo:
+
+
+
+##### 1. Prueba de Normalidad
+
+```{r}
+# Se aplica la prueba de normalidad Shapiro-Wilk a cada categoría
+for (col in names(df_outliers)) {
+  p_value <- shapiro.test(df_outliers[[col]])$p.value
+  if (p_value < 0.05) {
+    cat(col, "(p-value:", p_value, ")\n")
+  } else {
+    cat(col, p_value, ")\n")
+  }
+}
+
+
+```
+
+Como se observa en los resultados, no hay distribuciones normales ya que el valor de p es muy pequeño, por lo que se hará una normalización de los datos con valores atípicos:
+
+```{r}
+
+# Lista de variables numéricas
+numeric_columns1 <- c("curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "price")
+
+# Normalizar variables numericas
+normalize_zscore1 <- function(column) {
+  (column - mean(column, na.rm = TRUE)) / sd(column, na.rm = TRUE)
+}
+
+# Crear un nuevo dataframe para los datos normalizados
+df_normalized1 <- df_outliers
+
+# Normalizar las columnas numéricas
+df_normalized1[numeric_columns1] <- lapply(df_normalized1[numeric_columns1], normalize_zscore1)
+
+
+```
+
+###### 2. Homogeneidad de Varianzas
+
+Para probar si existe homogeneidad entre las varianzas de las variables numéricas se utilizará la prueba de Levene, que evalúa si las varianzas de diferentes grupos son estadísticamente diferentes.
+
+```{r}
+
+# Grupo al que pertenecen los valores
+grupo <- rep(c("horsepower", "curbweight", "carwidth", "enginesize", "highwaympg", "citympg"), each = nrow(df_normalized1))
+
+valores <- c(df_normalized1$horsepower, df_normalized1$curbweight, df_normalized1$carwidth, df_normalized1$enginesize, df_normalized1$highwaympg, df_normalized1$citympg)
+
+# Prueba de Levene
+leveneTest(valores, grupo)
+
+
+```
+
+Tomando, por ejemplo, un alpha de 0.03 y teniendo un valor F de 0.79, entonces no se rechaza la hipótesis nula de que las varianzas de las variables numéricas son iguales entre los grupos. Por lo que se pasa la prueba de homogeneidad de varianzas.
+
+#### 2. Aplicación de la herramienta estadística
+
+#### Regresión lineal múltiple
+
+##### 1. Se analizan los datos proporcionados
+
+
+
+
+Se realiza una matriz de correlación
+
+```{r}
+#Se quiere observar la correlación entre las variables numéricas
+df_correlacion <- df_normalized1[c("horsepower", "curbweight", "carwidth", "enginesize", "highwaympg", "citympg", "price")]
+matriz_correlacion <- cor(df_correlacion)
+matriz_correlacion
+
+```
+
+```{r}
+
+
+Rc = rcorr(as.matrix(df_correlacion))
+Rc
+pairs(df_correlacion,labels=c("horsepower", "curbweight", "carwidth", "enginesize", "highwaympg", "citympg"),main="Matriz de dispersión",pch=20)
+```
+
+Ahora, teniendo en cuenta que unas variables son más significativas que otras, se debe generar un modelo que sea eficiente y hacer un análisis de correlación entre estas variables. Se deberán ir quitando las variables 1 a 1 para no afectar la significación. Se puede observar que carwidth y curbweight tienen una alta correlación. Sin embargo, curbweight tiene una mayor correlación con price, por lo tanto se utilizará esta. Además, highway mpg y citympg tienen una alta correlación, pero highway tiene una mayor correlación negativa con price, por lo que se usará este.
+
+Se realizará el modelo con las variables seleccionadas:
+
+1.  Curbweight
+2.  Horsepower
+3.  enginesize
+4.  Highwaympg
+5.  Cylinder number
+6.  Engine type
+7.  Carbody
+
+##### 2. Se crea un modelo de regresión lineal múltiple sin haber transformado las variables
+
+```{r}
+df_normalized2 <- df_normalized1
+
+df_normalized2 <- subset(df_normalized2, select = -c(citympg, carwidth))
+
+
+```
+
+```{r}
+nuevos_nombres <- c(
+  "eight", "five", "four", "six", "three", "twelve", "two", "dohc",
+  "dohcv", "l", "ohc", "ohcf", "ohcv",
+  "rotor", "convertible", "hardtop", "hatchback",
+  "sedan", "wagon", "curbweight", "horsepower", "enginesize","highwaympg","price"
+)
+
+colnames(df_normalized2) <- nuevos_nombres
+```
+
+```{r}
+
+
+R=lm(price~eight+five+four+ six+ three+twelve+two+dohc+dohcv+l+ ohc+ +ohcf+ohcv+rotor+convertible+hardtop+hatchback+sedan+wagon+curbweight+horsepower+enginesize+highwaympg,data=df_normalized2)
+summary(R)
+
+
+```
+
+##### 3. Elección del mejor modelo con el criterio de información de Akaike
+
+
+
+##### Modelo mixto
+
+```{r}
+step(R,direction="both",trace=1)
+```
+
+En este caso se busca obtener el menor AIC para medir el criterio,y saber qué tan bueno es el modelo utilizado. Mientras más pequeño es el AIC, mejor el modelo. El mejor modelo es el que utiliza eight, five, four, six, three, twelve, dohc, dohcv, l, ohc, ohcf, convertible, sedan, curbweight, horsepower, enginesize, highwaympg que da un AIC de -448.15.
+
+##### 4. Verificación del modelo
+
+
+
+
+##### a) Economía de las variables:
+
+Ahora, se genera un nuevo modelo después de haber realizado el método de step:
+
+```{r}
+R1 =lm(price ~ eight + five + four + six + three + twelve + 
+    dohc + dohcv + l + ohc + ohcf + convertible + sedan + curbweight + 
+    horsepower + enginesize + highwaympg, data = df_normalized2)
+R1
+```
+
+Se observa que se obtienen los coeficientes para cada variable. Antes eran 23 variables con 23 coeficientes, pero al momento de hacer la economía de las variables se obtienen 17 variables con 17 coeficientes.
+
+Con esto se puede obtener la ecuación para la regresión lineal múltiple como:
+
+```{r}
+b0 = R1$coefficients[1]
+b1 = R1$coefficients[2]
+b2 = R1$coefficients[3]
+b3 = R1$coefficients[4]
+b4 = R1$coefficients[5]
+b5 = R1$coefficients[6]
+b6 = R1$coefficients[7]
+b7 = R1$coefficients[8]
+b8 = R1$coefficients[9]
+b9 = R1$coefficients[10]
+b10 = R1$coefficients[11]
+b11 = R1$coefficients[12]
+b12 = R1$coefficients[13]
+b13 = R1$coefficients[14]
+b14 = R1$coefficients[15]
+b15 = R1$coefficients[16]
+b16 = R1$coefficients[17]
+b17 = R1$coefficients[18]
+
+cat("Precio = ", b0, "+", b1, "eight", b2, "five", b3, "four",b4,"six",b5, "three",b6, "twelve", "+", b7,"dohc",b8,"dohcv","+",b9,"l","+",b10,"ohc","+",b11,"ohcf","+",b12,"convertible","+",b13,"sedan","+",b14,"curbweight","+",b15,"horsepower","+",b16,"enginesize","+",b17,"highwaympg")
+```
+
+##### b) Significación global (Prueba de F para el modelo):
+
+$\alpha = 0.03$
+
+```{r}
+summary(R1)
+```
+
+
+*Hipótesis*
+
+-   Sobre el modelo (significación global):
+
+$H_0: \beta1 +\beta2=...=\beta_k=0$
+
+$H_1: al\ menos\ un\ \beta1\neq0$
+
+*Interpretación:*
+
+-   Significación global
+
+Teniendo: F = 105.1 Valor p = 2.2e-16
+
+El valor p es muy pequeño, mucho menor a $alpha$. Por ende, se rechaza $H_0$.
+
+##### c) Significación individual (Prueba de t de student para $beta_i$) :
+
+*Hipótesis* - Sobre las $\beta_i$ (significación individual)
+
+$H_0: \beta_i =0$
+
+$H_1: \beta_i\neq0$
+
+*Interpretación*
+
+-   Significación individual
+
+Ignorando el intercepto, y teniendo en cuenta las variables predictoras con t\* con valores muy grandes y diferentes de cero tanto positiva como negativamente, se puede concluir que se está muy lejos de la media, por lo tanto todas las variables seleccionadas son significativas. Por lo tanto se rechaza $H_0$.
+
+##### d) Variación explicada por el modelo (coeficiente de determinación
+
+Tomando el Adjusted R-squared de 0.8967, se infiere que el modelo explica el 89.67% del precio, a partir de las variables predictoras.
+
+##### 5. Validez del modelo (Utilizando pruebas de hipótesis)
+
+
+
+#### a) Normalidad de los residuos (prueba de Anderson Darling):
+
+$H_0:$ Los datos provienen de una población normal. $H_1:$ Los datos no provienen de una población normal.
+
+*Regla de decisión:* \* Se rechazará $H_0$ si p \< $alpha$
+
+```{r}
+library(nortest)
+ad.test(R1$residuals)
+```
+
+Se observa que el valor p es muy pequeño, por lo que se infiere que los datos no provienen de una distribución normal.
+
+##### Tranformación de Yeo-Johnson
+
+Debido a que no se pasó la prueba de normalidad de los residuos, se realizará una transformación para hacer un modelo que contenga datos con una distribución normal.
+
+Como se cuentan con valores negativos dentro de las variables predictoras, y se desea normalizar el conjunto de datos, se utilizará la transformación de Yeo-Johnson. Únicamente se aplicará esta transformación a las variables numéricas ya que las categóricas son variables dummy, por lo que no requieren tener una transformación.
+
+```{r}
+
+# Variables numéricas
+num_vars <- c("curbweight", "horsepower", "enginesize", "highwaympg")
+
+# Se aplica la transformación de Yeo-Johnson a las variables numéricas y se guardan los resultados en df_final
+df_final <- df_normalized2 %>%
+  mutate(across(all_of(num_vars), ~ bestNormalize::yeojohnson(.x)$x.t, .names = "{.col}_yeojohnson"))
+
+```
+
+```{r}
+# Lista de columnas a eliminar
+columnas_a_eliminar <- c("curbweight", "horsepower", "enginesize", "highwaympg")
+
+# Se eliminan las columnas
+df_final <- df_final[, !(names(df_final) %in% columnas_a_eliminar)]
+```
+
+```{r}
+nuevos_nombres <- c("curbweight", "horsepower", "enginesize", "highwaympg")
+df_final <- df_final %>%
+  rename(
+    curbweight = curbweight_yeojohnson,
+    horsepower = horsepower_yeojohnson,
+    enginesize = enginesize_yeojohnson,
+    highwaympg = highwaympg_yeojohnson
+  )
+
+```
+
+Se hace el nuevo modelo de regresión lineal múltiple pero ahora con las variables normalizadas y transformadas
+
+##### Nuevo modelo de regresión lineal Múltiple
+
+```{r}
+R2 =lm(price ~ eight + five + four + six + three + twelve + 
+    dohc + dohcv + l + ohc + ohcf + convertible + sedan + curbweight + 
+    horsepower + enginesize + highwaympg, data = df_final)
+R2
+```
+
+##### Se realiza el el criterio de información de Akaike
+
+```{r}
+step(R2,direction="both",trace=1)
+```
+
+Se obtiene que el modelo con el AIC más pequeño de -382.02 es el que cuenta con las variables predictoras eight, five, four, twelve, dohc, dohcv, l, ohc, ohcf, convertible, sedan, curbweight, horsepower, y highwaympg.
+
+#### Modelo normalizado y transformado
+
+
+
+
+##### a) Economía de las variables:
+
+Ahora, se genera un nuevo modelo después de haber realizado el método de step:
+
+```{r}
+R1 =lm(price ~ eight + five + four + twelve + dohc + dohcv + 
+    l + ohc + ohcf + convertible + sedan + curbweight + horsepower + 
+    highwaympg, data = df_final)
+R1
+```
+
+Se observa que se obtienen los coeficientes para cada variable. Antes eran 17 variables con 17 coeficientes (con datos no normalizados), pero al momento de hacer la economía de las variables se obtienen 14 variables con 14 coeficientes (utilizando valores normalizados).
+
+Con esto se puede obtener la ecuación para la regresión lineal múltiple como:
+
+```{r}
+b0 = R1$coefficients[1]
+b1 = R1$coefficients[2]
+b2 = R1$coefficients[3]
+b3 = R1$coefficients[4]
+b4 = R1$coefficients[5]
+b5 = R1$coefficients[6]
+b6 = R1$coefficients[7]
+b7 = R1$coefficients[8]
+b8 = R1$coefficients[9]
+b9 = R1$coefficients[10]
+b10 = R1$coefficients[11]
+b11 = R1$coefficients[12]
+b12 = R1$coefficients[13]
+b13 = R1$coefficients[14]
+b14 = R1$coefficients[15]
+b15 = R1$coefficients[16]
+b16 = R1$coefficients[17]
+b17 = R1$coefficients[18]
+
+cat("Precio = ", b0, "+", b1, "eight", b2, "five", b3, "four","+",b4,"twelve","+",b5, "dohc",b6, "dohcv", "+", b7,"l","+",b8,"ohc","+",b9,"ohcf","+",b10,"convertible","+",b11,"curbweight","+",b12,"horsepower","+",b13,"highwaympg")
+```
+
+
+##### b) Significación global (Prueba de F para el modelo normalizado):
+
+
+
+*Hipótesis*
+
+-   Sobre el modelo (significación global):
+
+$H_0: \beta1 +\beta2=...=\beta_k=0$
+
+$H_1: al\ menos\ un\ \beta1\neq0$
+
+$\alpha = 0.03$
+
+```{r}
+summary(R2)
+```
+
+*Interpretación:*
+
+-   Significación global
+
+Teniendo: F = 71.76 Valor p = 2.2e-16
+
+El valor p es muy pequeño, mucho menor a $alpha$. Por ende, se rechaza $H_0$.
+
+##### c) Significación individual (Prueba de t de student para $beta_i$) :
+
+*Hipótesis* 
+
+- Sobre las $\beta_i$ (significación individual)
+
+$H_0: \beta_i =0$
+
+$H_1: \beta_i\neq0$
+
+*Interpretación*
+
+-   Significación individual
+
+Ignorando el intercepto, y teniendo en cuenta las variables predictoras con t\* con valores muy grandes y diferentes de cero tanto positiva como negativamente, se puede concluir que se está muy lejos de la media, por lo tanto todas las variables seleccionadas son significativas. Por lo tanto se rechaza $H_0$.
+
+##### d) Variación explicada por el modelo (coeficiente de determinación
+
+Tomando el Adjusted R-squared de 0.855, se infiere que el modelo explica el 85.5% del precio, a partir de las variables predictoras.
+
+##### 5. Validez del modelo (Utilizando pruebas de hipótesis de medias)
+
+##### a) Normalidad de los residuos (prueba de Shapiro-Wilk):
+
+$H_0:$ Los datos provienen de una población normal.
+
+$H_1:$ Los datos no provienen de una población normal.
+
+*Regla de decisión:*
+
+-   Se rechazará $H_0$ si p \< $alpha$
+
+```{r}
+resultado_shapiro <- shapiro.test(df_final$curbweight)
+resultado_shapiro
+```
+
+-   Conclusión: Se observa que el valor p es mayor que $alpha = 0.03$, por lo tanto no se rechaza $H_0$ y se asume que los datos provienen de una población normal.
+
+##### Gráfica de normalidad de los residuos
+
+```{r}
+qqnorm(R2$residuals)
+qqline(R2$residuals)
+```
+
+Se confirma en la gráfica que hay normalidad debido a que la línea en su mayoría va recta sin desplazarse hacia abajo o hacia arriba.
+
+##### b) Verificación de media cero (prueba t de student):
+
+*Hipótesis*
+
+-   $H_0:\mu=0$
+
+-   $H_1:\mu\neq0$
+
+-   Regla de decisión: Se rechazará $H_0$ si p \< $alpha$
+
+```{r}
+t.test(R2$residuals)
+```
+
+-   Conclusión: No se rechaza la hipótesis nula $H_0$ ya que el valor de p es mayor que $alpha$, por lo tanto se asume que la media es de 0
+
+##### c) Homocedasticidad o independencia (análisis de gráficos de los residuos):
+
+```{r}
+plot(R2$fitted.values,R2$residuals)
+abline(h=0, col="blue")
+```
+
+Se observa que hay homocedasticidad y no hay un sesgo o comportamiento, por lo que es simétrico, y se asume independencia.
+
+#### Conclusión
 
 A lo largo de este reporte se hicieron análisis tanto gráficos como numéricos. Iniciando por generar el resumen de las medidas estadísticas de las variables numéricas, notando hacia donde se agrupan la mayoría de los valores, y observando en las boxplots que hay muchos valores atípicos en la mayoría de las variables numéricas excepto en la variable de curbweight. Por lo que al momento de seleccionar las variables útiles para el análisis: "curbweight", "horsepower", "carwidth", "enginesize", "citympg", "highwaympg", "symboling", "cylindernumber", "price", "enginetype", "carbody", se hizo una normalización de las mismas usando el método de Z-score. Por otra parte, como se consideran relevantes algunas variables categóricas, se transformaron en variables dummy que están en un rango de cero y uno. Estas variables a tratar fueron seleccionadas ya que tienen un impacto en la correlación positiva o negativa con respecto al precio del vehículo. Se dejaron de lado otras variables que o se repetían mucho o eran insignificantes para el análisis deseado. Sobre el análisis realizado, se observa que el kilometraje en ciudad y carretera tiene un impacto negativo en el precio, es decir, que cuanto mayor es este kilometraje, el precio disminuye. Por otra parte, tomando en cuenta las variables como el peso en vacío del vehículo, los caballos de potencia, el tamaño del vehículo y del motor, el precio aumenta conforme estas variables aumentan. Esto puede significar mucho para ayudar al cliente a obtener los precios de sus vehículos al establecer su compañía en el mercado estadounidense.
+
+Más adelante se realizaron modelos de regresión lineal múltiple para generar un nuevo modelo que pudiera predecir el precio de un vehículo a partir de variables predictoras, para encontrar este modelo con las variables útiles para la predicción se utilizó el método "mixto" y se encontró un modelo con un coeficiente de determinación de 0.855, lo que indica que es un buen modelo para ayudar al cliente a obtener los precios de sus vehículos al establecer su compañía en Estados Unidos. Sin embargo, para validar este modelo, se realizaron las pruebas de hipótesis de medias, y la verificación del modelo. Todas las pruebas fueron aprobadas, por lo que se valida el modelo para su aplicación en la situación planteada.
